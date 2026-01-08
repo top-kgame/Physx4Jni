@@ -1,2 +1,2 @@
-# Physx4Jni
-A JNI lib for Physx
+# Physx4Jni [Work in Progress]
+A JNI lib for Physx.
