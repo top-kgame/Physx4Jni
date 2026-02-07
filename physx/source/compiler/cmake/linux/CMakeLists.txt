@@ -26,6 +26,13 @@
 
 STRING(TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_LOWERCASE)
 
+# On macOS (Darwin) use "unix" include subdir; on Linux use "linux" (public SDK has foundation under unix, linux dirs may be empty)
+IF(APPLE)
+	SET(PHYSX_PLATFORM_INCLUDE_SUBDIR "unix" CACHE INTERNAL "Platform include subdir: unix on macOS, linux on Linux")
+ELSE()
+	SET(PHYSX_PLATFORM_INCLUDE_SUBDIR "linux" CACHE INTERNAL "Platform include subdir: unix on macOS, linux on Linux")
+ENDIF()
+
 #TODO: Fix warnings
 SET(CLANG_WARNINGS "-ferror-limit=0 -Wall -Wextra -Werror -Weverything\
     -Wno-unused-but-set-variable \
@@ -125,6 +132,9 @@ IF ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 	ELSE()
 		SET(PHYSX_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_CXX_FLAGS} -fstrict-aliasing -Wstrict-aliasing=2 -ffp-exception-behavior=maytrap ${CLANG_WARNINGS}" CACHE INTERNAL "PhysX CXX")
 	ENDIF()
+ELSEIF ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang")
+	# macOS: treat AppleClang like Clang; disable warnings that fire when building natively (not cross-compiling)
+	SET(PHYSX_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_CXX_FLAGS} -fstrict-aliasing -Wstrict-aliasing=2 -ffp-exception-behavior=maytrap -Wno-poison-system-directories -Wno-bitwise-instead-of-logical ${CLANG_WARNINGS}" CACHE INTERNAL "PhysX CXX")
 ELSEIF ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 	SET(PHYSX_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_CXX_FLAGS} -fno-strict-aliasing ${GCC_WARNINGS}" CACHE INTERNAL "PhysX CXX")
 ENDIF()

@@ -93,6 +93,7 @@ inline OmniPvdLoader::~OmniPvdLoader()
 
 inline bool OmniPvdLoader::loadOmniPvd(const char *libFile)
 {
+	(void)libFile; /* used on OMNI_PVD_WIN and __linux__, unused on other platforms */
 
 #ifdef OMNI_PVD_WIN
 	mLibraryHandle = LoadLibraryA(libFile);

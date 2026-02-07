@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<preset name="mac-aarch64-clang-cpu-only" comment="macOS (Apple Silicon / Intel) clang PhysX SDK, CPU only, no Snippets/PVD (for JNI etc.)">
+  <platform targetPlatform="linuxAarch64" compiler="clang" />
+  <CMakeSwitches>
+    <cmakeSwitch name="PX_BUILDSNIPPETS" value="False" comment="Disable snippets to avoid OpenGL dependency on macOS" />
+    <cmakeSwitch name="PX_BUILDPVDRUNTIME" value="False" comment="Disable OmniPVD for minimal SDK build" />
+    <cmakeSwitch name="PX_GENERATE_STATIC_LIBRARIES" value="True" comment="Generate static libs" />
+  </CMakeSwitches>
+  <CMakeParams>
+    <cmakeParam name="CMAKE_INSTALL_PREFIX" value="install/mac-aarch64-clang-cpu-only/PhysX" comment="Install path relative to PhysX SDK root" />
+  </CMakeParams>
+</preset>

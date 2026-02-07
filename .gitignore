@@ -56,3 +56,6 @@ CMakeUserPresets.json
 build/
 
 cmake-build-*
+
+.idea/
+.vscode/

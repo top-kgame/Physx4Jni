@@ -392,7 +392,8 @@ TARGET_INCLUDE_DIRECTORIES(PhysX
 	PRIVATE ${PHYSX_SOURCE_DIR}/gpucommon/include
 	PRIVATE ${PHYSX_SOURCE_DIR}/gpucommon/src/CUDA
 
-	PRIVATE ${PHYSX_SOURCE_DIR}/omnipvd
+	# omnipvd headers live under physx/src/omnipvd, so use PX_SOURCE_DIR for "omnipvd/xxx.h"
+	PRIVATE ${PX_SOURCE_DIR}
 	PRIVATE ${PHYSX_ROOT_DIR}/pvdruntime/include
 )
 

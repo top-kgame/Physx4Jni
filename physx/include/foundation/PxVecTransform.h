@@ -132,7 +132,7 @@ class PxTransformV
 	PX_FORCE_INLINE bool isValid() const
 	{
 		// return p.isFinite() && q.isFinite() && q.isValid();
-		return isFiniteVec3V(p) & isFiniteQuatV(q) & isValidQuatV(q);
+		return isFiniteVec3V(p) && isFiniteQuatV(q) && isValidQuatV(q);
 	}
 
 	/**
@@ -143,7 +143,7 @@ class PxTransformV
 	PX_FORCE_INLINE bool isSane() const
 	{
 		// return isFinite() && q.isSane();
-		return isFinite() & isSaneQuatV(q);
+		return isFinite() && isSaneQuatV(q);
 	}
 
 	/**
@@ -152,7 +152,7 @@ class PxTransformV
 	PX_FORCE_INLINE bool isFinite() const
 	{
 		// return p.isFinite() && q.isFinite();
-		return isFiniteVec3V(p) & isFiniteQuatV(q);
+		return isFiniteVec3V(p) && isFiniteQuatV(q);
 	}
 
 #if PX_LINUX && PX_CLANG
