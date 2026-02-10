@@ -8,5 +8,6 @@
   </CMakeSwitches>
   <CMakeParams>
     <cmakeParam name="CMAKE_INSTALL_PREFIX" value="install/mac-aarch64-clang-cpu-only/PhysX" comment="Install path relative to PhysX SDK root" />
+    <cmakeParam name="PX_PLATFORM_BIN_NAME" value="mac.aarch64" comment="Output dir in bin/ (mac.aarch64 instead of linux.x86_64)" />
   </CMakeParams>
 </preset>
