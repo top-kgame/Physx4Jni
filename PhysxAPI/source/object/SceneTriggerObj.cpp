@@ -1,8 +1,8 @@
 //
-// Created by zhangakai on 2026/4/13.
+// Created by zhangakai on 2026/4/17.
 //
 
-#include "SceneStaticObj.h"
+#include "SceneTriggerObj.h"
 
 #include "../PhysxApi.h"
 #include "../scene/Scene.h"
@@ -10,18 +10,19 @@
 #include <cmath>
 #include <vector>
 
-SceneStaticObj::SceneStaticObj(Scene* owner)
+SceneTriggerObj::SceneTriggerObj(Scene* owner)
     : SceneObj(owner),
       m_actor(nullptr)
 {
+    setObjectFlags(PHYSXAPI_OBJECT_FLAG_TRIGGER);
 }
 
-SceneStaticObj::~SceneStaticObj()
+SceneTriggerObj::~SceneTriggerObj()
 {
     destroy();
 }
 
-bool SceneStaticObj::initialize()
+bool SceneTriggerObj::initialize()
 {
     auto* physics = getPxPhysics();
     if (!physics || !m_owner_scene) return false;
@@ -32,16 +33,18 @@ bool SceneStaticObj::initialize()
     return true;
 }
 
-void SceneStaticObj::attachShape(physx::PxShape* shape)
+void SceneTriggerObj::attachTriggerShape(physx::PxShape* shape)
 {
     if (!m_actor || !shape) return;
     applyFilterDataToShape(shape);
+    shape->setFlag(physx::PxShapeFlag::eSIMULATION_SHAPE, false);
+    shape->setFlag(physx::PxShapeFlag::eTRIGGER_SHAPE, true);
     m_actor->attachShape(*shape);
-    // createShape 返回的 shape 由调用方持有一次引用；attach 后释放本地引用，避免泄漏
+    // attach 后释放本地引用，避免泄漏
     shape->release();
 }
 
-bool SceneStaticObj::detachShape(physx::PxShape* shape)
+bool SceneTriggerObj::detachShape(physx::PxShape* shape)
 {
     if (!shape) return false;
     if (m_actor)
@@ -52,7 +55,7 @@ bool SceneStaticObj::detachShape(physx::PxShape* shape)
     return true;
 }
 
-void SceneStaticObj::destroy()
+void SceneTriggerObj::destroy()
 {
     if (!m_actor) return;
     if (m_owner_scene && m_owner_scene->pxScene())
@@ -63,7 +66,7 @@ void SceneStaticObj::destroy()
     m_actor = nullptr;
 }
 
-void SceneStaticObj::refreshFilterData()
+void SceneTriggerObj::refreshFilterData()
 {
     if (!m_actor) return;
     const physx::PxU32 shapeCount = m_actor->getNbShapes();
@@ -77,7 +80,7 @@ void SceneStaticObj::refreshFilterData()
     }
 }
 
-void SceneStaticObj::move(const physx::PxVec3* movement)
+void SceneTriggerObj::move(const physx::PxVec3* movement)
 {
     if (!m_actor || !movement) return;
     auto pose = m_actor->getGlobalPose();
@@ -85,12 +88,12 @@ void SceneStaticObj::move(const physx::PxVec3* movement)
     m_actor->setGlobalPose(pose);
 }
 
-void SceneStaticObj::move_to(const physx::PxVec3* target_pos)
+void SceneTriggerObj::move_to(const physx::PxVec3* target_pos)
 {
     teleport(target_pos);
 }
 
-void SceneStaticObj::teleport(const physx::PxVec3* target_pos)
+void SceneTriggerObj::teleport(const physx::PxVec3* target_pos)
 {
     if (!m_actor || !target_pos) return;
     auto pose = m_actor->getGlobalPose();
@@ -98,23 +101,23 @@ void SceneStaticObj::teleport(const physx::PxVec3* target_pos)
     m_actor->setGlobalPose(pose);
 }
 
-void SceneStaticObj::faceTo(const physx::PxVec3* target_pos)
+void SceneTriggerObj::faceTo(const physx::PxVec3* target_pos)
 {
     if (!m_actor || !target_pos) return;
     auto pose = m_actor->getGlobalPose();
     const physx::PxVec3 dir = (*target_pos - pose.p);
     if (dir.magnitudeSquared() < 1e-6f) return;
     const physx::PxVec3 f = dir.getNormalized();
-    // 仅按 Yaw 旋转（Y 轴向上）
     const float yaw = std::atan2f(f.x, f.z);
     pose.q = physx::PxQuat(yaw, physx::PxVec3(0, 1, 0));
     m_actor->setGlobalPose(pose);
 }
 
-void SceneStaticObj::factTo(physx::PxQuat* rotation)
+void SceneTriggerObj::factTo(physx::PxQuat* rotation)
 {
     if (!m_actor || !rotation) return;
     auto pose = m_actor->getGlobalPose();
     pose.q = *rotation;
     m_actor->setGlobalPose(pose);
 }
+

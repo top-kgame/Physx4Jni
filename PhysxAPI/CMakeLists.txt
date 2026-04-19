@@ -71,6 +71,37 @@ if(NOT EXISTS "${PHYSX_BUILD_DIR}")
     message(FATAL_ERROR "PhysX build directory not found: ${PHYSX_BUILD_DIR}")
 endif()
 
+# 兼容：如果当前构建类型对应的 PhysX 静态库缺失，则回落到 debug 目录
+# （常见于只编译了 debug 版 PhysX，但 PhysxAPI 选择了 Release）
+set(_PHYSX_CORE_LIB "${PHYSX_BUILD_DIR}/libPhysX_static_64.a")
+if(NOT EXISTS "${_PHYSX_CORE_LIB}")
+    set(_PHYSX_FALLBACK_DIR "${PHYSX_HOME}/bin/${PLATFORM_NAME}/debug")
+    if(EXISTS "${_PHYSX_FALLBACK_DIR}/libPhysX_static_64.a")
+        message(WARNING "PhysX libs not found in ${PHYSX_BUILD_DIR}; falling back to ${_PHYSX_FALLBACK_DIR}")
+        set(PHYSX_BUILD_DIR "${_PHYSX_FALLBACK_DIR}")
+        set(PHYSX_BUILD_TYPE "debug")
+    else()
+        message(FATAL_ERROR "PhysX core lib not found: ${_PHYSX_CORE_LIB}")
+    endif()
+endif()
+
+# macOS：PhysX 静态库架构需与本项目一致（arm64 / x86_64）
+# 如果 PhysX 库是 x86_64（常见于只编译了 Intel 版 PhysX），则强制本项目也编译为 x86_64 以便链接通过。
+if(APPLE AND EXISTS "${_PHYSX_CORE_LIB}")
+    execute_process(
+            COMMAND lipo -info "${_PHYSX_CORE_LIB}"
+            OUTPUT_VARIABLE _PHYSX_LIPO_OUT
+            ERROR_VARIABLE _PHYSX_LIPO_ERR
+            RESULT_VARIABLE _PHYSX_LIPO_CODE
+    )
+    if(_PHYSX_LIPO_CODE EQUAL 0)
+        if(_PHYSX_LIPO_OUT MATCHES "x86_64" AND NOT _PHYSX_LIPO_OUT MATCHES "arm64")
+            message(WARNING "PhysX libs are x86_64 only; forcing PhysxAPI to build as x86_64")
+            set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "macOS architectures" FORCE)
+        endif()
+    endif()
+endif()
+
 message(STATUS "PhysxAPI: ${CMAKE_SYSTEM_NAME} | ${CMAKE_BUILD_TYPE} | out=${BUILD_OUTPUT_DIR} | PhysX=${PHYSX_BUILD_DIR}")
 
 # 源文件组织
@@ -79,9 +110,17 @@ set(MAIN_SOURCES
         source/PhysxApi.h
         source/scene/Scene.cpp
         source/scene/Scene.h
-        source/Math.h
+        source/PhysxMath.h
         source/object/SceneObj.cpp
         source/object/SceneObj.h
+        source/object/SceneRigidObj.cpp
+        source/object/SceneRigidObj.h
+        source/object/SceneKinematicObj.cpp
+        source/object/SceneKinematicObj.h
+        source/object/SceneTriggerObj.cpp
+        source/object/SceneTriggerObj.h
+        source/object/SceneCharacterObj.cpp
+        source/object/SceneCharacterObj.h
         source/PhysxApiCommon.h
         source/scene/QueryResult.cpp
         source/scene/QueryResult.h
@@ -168,6 +207,18 @@ target_link_libraries(PhysxAPI
 
 # 设置库搜索路径
 target_link_directories(PhysxAPI PRIVATE ${PHYSX_BUILD_DIR})
+
+# ---- Tests (CLion runnable) ----
+add_executable(PhysxAPITest
+        tests/TestMain.cpp
+)
+target_include_directories(PhysxAPITest PRIVATE
+        ${PROJECT_INCLUDE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${PHYSX_HOME}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/source
+)
+target_link_libraries(PhysxAPITest PRIVATE PhysxAPI)
 
 # 安装规则（当前安装到构建目录，如需安装到系统请改为 CMAKE_INSTALL_PREFIX 子路径）
 set(INSTALL_LIB_DIR ${BUILD_OUTPUT_DIR}/lib)

@@ -7,14 +7,31 @@
 
 #include "../PhysxApiCommon.h"
 
+class Scene;
+
 class SceneObj
 {
 public:
-    SceneObj();
-    physx::PxShape* createBoxShape();
-    physx::PxShape* createSphereShape();
-    physx::PxShape* createCapsuleShape();
-    void detachShape(physx::PxShape* shape);
+    explicit SceneObj(Scene* owner);
+    virtual ~SceneObj() = default;
+
+    physx::PxShape* createBoxShape(const physx::PxVec3& halfExtents);
+    physx::PxShape* createSphereShape(float radius);
+    physx::PxShape* createCapsuleShape(float radius, float halfHeight);
+
+    void setCollisionFilter(uint32_t layer, uint32_t collideMask);
+    uint64_t handle() const { return m_handle; }
+    uint32_t layer() const { return m_layer; }
+    uint32_t collideMask() const { return m_collide_mask; }
+    uint32_t objectFlags() const { return m_object_flags; }
+    /**
+     * detach 并释放 shape（如果仍挂在 actor 上，会先 detach 再 release）
+     * @return 是否成功执行（shape 为 null 返回 false）
+     */
+    virtual bool detachShape(physx::PxShape* shape) = 0;
+
+    /** Scene::destroyObject 调用：从 scene 中移除底层实体并释放 */
+    virtual void destroy() = 0;
 
     /**
      * 向某个方向移动
@@ -46,7 +63,18 @@ public:
      */
     virtual void factTo(physx::PxQuat *rotation) = 0;
 
-    virtual ~SceneObj() = default;
+protected:
+    physx::PxFilterData simulationFilterData() const;
+    physx::PxFilterData queryFilterData() const;
+    void applyFilterDataToShape(physx::PxShape* shape) const;
+    void setObjectFlags(uint32_t objectFlags);
+    virtual void refreshFilterData() = 0;
+
+    Scene* m_owner_scene;
+    uint64_t m_handle;
+    uint32_t m_layer;
+    uint32_t m_collide_mask;
+    uint32_t m_object_flags;
 };
 
 
