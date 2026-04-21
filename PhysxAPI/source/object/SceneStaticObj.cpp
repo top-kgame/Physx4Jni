@@ -107,7 +107,7 @@ void SceneStaticObj::faceTo(const physx::PxVec3* target_pos)
     const physx::PxVec3 f = dir.getNormalized();
     // 仅按 Yaw 旋转（Y 轴向上）
     const float yaw = std::atan2f(f.x, f.z);
-    pose.q = physx::PxQuat(yaw, physx::PxVec3(0, 1, 0));
+    pose.q = physx::PxQuat(yaw, PhysxApiWorldUp());
     m_actor->setGlobalPose(pose);
 }
 

@@ -18,6 +18,9 @@ public:
     bool detachShape(physx::PxShape* shape) override;
     void destroy() override;
 
+    /** 从 kinematic 切到 dynamic 时调用，并重新计算质量/惯性（density 由上层决定） */
+    void makeDynamic(float density);
+
     void move(const physx::PxVec3* movement) override;
     void move_to(const physx::PxVec3* target_pos) override;
     void teleport(const physx::PxVec3* target_pos) override;

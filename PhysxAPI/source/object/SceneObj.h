@@ -64,7 +64,7 @@ public:
     virtual void factTo(physx::PxQuat *rotation) = 0;
 
 protected:
-    physx::PxFilterData simulationFilterData() const;
+    [[nodiscard]] physx::PxFilterData simulationFilterData() const;
     physx::PxFilterData queryFilterData() const;
     void applyFilterDataToShape(physx::PxShape* shape) const;
     void setObjectFlags(uint32_t objectFlags);

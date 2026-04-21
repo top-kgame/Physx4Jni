@@ -19,7 +19,7 @@ SceneObj::SceneObj(Scene* owner)
 physx::PxShape* SceneObj::createBoxShape(const physx::PxVec3& halfExtents)
 {
     auto* physics = getPxPhysics();
-    auto* mat = getDefaultMaterial();
+    const auto* mat = getDefaultMaterial();
     if (!physics || !mat) return nullptr;
     return physics->createShape(physx::PxBoxGeometry(halfExtents), *mat, true);
 }

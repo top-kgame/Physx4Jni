@@ -43,8 +43,6 @@ void SceneKinematicObj::attachShape(physx::PxShape* shape)
     if (!m_actor || !shape) return;
     applyFilterDataToShape(shape);
     m_actor->attachShape(*shape);
-    // kinematic 仍可挂质量属性（不用于动力学求解，但保持数据完整）
-    physx::PxRigidBodyExt::updateMassAndInertia(*m_actor, 10.0f);
     // attach 后释放本地引用，避免泄漏
     shape->release();
 }
@@ -69,6 +67,16 @@ void SceneKinematicObj::destroy()
     }
     m_actor->release();
     m_actor = nullptr;
+}
+
+void SceneKinematicObj::makeDynamic(float density)
+{
+    if (!m_actor) return;
+    m_actor->setRigidBodyFlag(physx::PxRigidBodyFlag::eKINEMATIC, false);
+    if (density > 0.0f)
+    {
+        physx::PxRigidBodyExt::updateMassAndInertia(*m_actor, density);
+    }
 }
 
 void SceneKinematicObj::refreshFilterData()
@@ -187,7 +195,7 @@ void SceneKinematicObj::faceTo(const physx::PxVec3* target_pos)
     if (dir.magnitudeSquared() < 1e-6f) return;
     const physx::PxVec3 f = dir.getNormalized();
     const float yaw = std::atan2f(f.x, f.z);
-    pose.q = physx::PxQuat(yaw, physx::PxVec3(0, 1, 0));
+    pose.q = physx::PxQuat(yaw, PhysxApiWorldUp());
     m_actor->setGlobalPose(pose);
 }
 

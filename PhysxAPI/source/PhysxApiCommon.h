@@ -20,6 +20,14 @@ enum class SCENE_OBJECT_TYPE
 constexpr uint32_t PHYSXAPI_DEFAULT_LAYER = 1u;
 constexpr uint32_t PHYSXAPI_ALL_LAYERS = 0xffffffffu;
 
+/** 默认密度（用于从 shape 估算刚体质量/惯性；单位随工程标定体系） */
+constexpr float PHYSXAPI_DEFAULT_DENSITY = 10.0f;
+
+inline physx::PxVec3 PhysxApiWorldUp()
+{
+    return physx::PxVec3(0.0f, 1.0f, 0.0f);
+}
+
 enum PhysxApiObjectFlags : uint32_t
 {
     PHYSXAPI_OBJECT_FLAG_NONE = 0,

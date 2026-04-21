@@ -109,7 +109,7 @@ void SceneTriggerObj::faceTo(const physx::PxVec3* target_pos)
     if (dir.magnitudeSquared() < 1e-6f) return;
     const physx::PxVec3 f = dir.getNormalized();
     const float yaw = std::atan2f(f.x, f.z);
-    pose.q = physx::PxQuat(yaw, physx::PxVec3(0, 1, 0));
+    pose.q = physx::PxQuat(yaw, PhysxApiWorldUp());
     m_actor->setGlobalPose(pose);
 }
 

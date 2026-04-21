@@ -40,7 +40,7 @@ void SceneRigidObj::attachShape(physx::PxShape* shape)
     if (!m_actor || !shape) return;
     applyFilterDataToShape(shape);
     m_actor->attachShape(*shape);
-    physx::PxRigidBodyExt::updateMassAndInertia(*m_actor, 10.0f);
+    physx::PxRigidBodyExt::updateMassAndInertia(*m_actor, PHYSXAPI_DEFAULT_DENSITY);
     // attach 后释放本地引用，避免泄漏
     shape->release();
 }
@@ -115,7 +115,7 @@ void SceneRigidObj::faceTo(const physx::PxVec3* target_pos)
     if (dir.magnitudeSquared() < 1e-6f) return;
     const physx::PxVec3 f = dir.getNormalized();
     const float yaw = std::atan2f(f.x, f.z);
-    pose.q = physx::PxQuat(yaw, physx::PxVec3(0, 1, 0));
+    pose.q = physx::PxQuat(yaw, PhysxApiWorldUp());
     m_actor->setGlobalPose(pose);
 }
 
