@@ -21,7 +21,7 @@ SceneKinematicObj::SceneKinematicObj(Scene* owner)
 
 SceneKinematicObj::~SceneKinematicObj()
 {
-    destroy();
+    SceneKinematicObj::destroy();
 }
 
 bool SceneKinematicObj::initialize()
@@ -87,36 +87,7 @@ void SceneKinematicObj::refreshFilterData()
 
 namespace
 {
-class IgnoreSelfQueryFilter final : public physx::PxQueryFilterCallback
-{
-public:
-    IgnoreSelfQueryFilter(const physx::PxRigidActor* self, uint32_t queryMask)
-        : m_self(self), m_query_mask(queryMask) {}
-
-    physx::PxQueryHitType::Enum preFilter(const physx::PxFilterData&,
-                                          const physx::PxShape* shape,
-                                          const physx::PxRigidActor* actor,
-                                          physx::PxHitFlags&) override
-    {
-        if (actor == m_self) return physx::PxQueryHitType::eNONE;
-        if (!shape) return physx::PxQueryHitType::eNONE;
-        const physx::PxFilterData shapeFilterData = shape->getQueryFilterData();
-        if ((shapeFilterData.word0 & m_query_mask) == 0) return physx::PxQueryHitType::eNONE;
-        return physx::PxQueryHitType::eBLOCK;
-    }
-
-    physx::PxQueryHitType::Enum postFilter(const physx::PxFilterData&,
-                                           const physx::PxQueryHit&,
-                                           const physx::PxShape*,
-                                           const physx::PxRigidActor*) override
-    {
-        return physx::PxQueryHitType::eBLOCK;
-    }
-
-private:
-    const physx::PxRigidActor* m_self;
-    uint32_t m_query_mask;
-};
+    constexpr float kKinematicSweepSkin = 0.001f;
 } // namespace
 
 void SceneKinematicObj::move(const physx::PxVec3* movement)
@@ -128,33 +99,47 @@ void SceneKinematicObj::move(const physx::PxVec3* movement)
 
     physx::PxTransform pose = m_actor->getGlobalPose();
 
-    physx::PxShape* shapes[1] = {nullptr};
-    const physx::PxU32 shapeCount = m_actor->getShapes(shapes, 1);
-    if (shapeCount == 0 || !shapes[0] || !m_owner_scene->pxScene())
-    {
-        pose.p += *movement;
-        m_actor->setKinematicTarget(pose);
-        return;
-    }
-
     const physx::PxVec3 dir = (*movement) / dist;
-    physx::PxGeometryHolder geomHolder = shapes[0]->getGeometry();
-
-    physx::PxSweepBuffer hit;
-    physx::PxQueryFilterData qfd;
-    qfd.flags = physx::PxQueryFlag::eSTATIC | physx::PxQueryFlag::eDYNAMIC | physx::PxQueryFlag::ePREFILTER;
-
-    IgnoreSelfQueryFilter filter(m_actor, collideMask());
-    const bool hasHit = m_owner_scene->pxScene()->sweep(geomHolder.any(), pose, dir, dist, hit,
-                                                        physx::PxHitFlag::eDEFAULT, qfd, &filter);
 
     physx::PxVec3 finalMove = *movement;
-    if (hasHit && hit.hasBlock)
+    if (m_owner_scene->pxScene())
     {
-        // 轻量 skin，避免贴面造成抖动/穿插
-        constexpr float skin = 0.001f;
-        const float allowed = physx::PxMax(0.0f, hit.block.distance - skin);
-        finalMove = dir * allowed;
+        const physx::PxU32 shapeCount = m_actor->getNbShapes();
+        if (shapeCount > 0)
+        {
+            std::vector<physx::PxShape*> shapes(shapeCount, nullptr);
+            m_actor->getShapes(shapes.data(), shapeCount);
+
+            bool hasAnyHit = false;
+            float nearestHitDistance = dist;
+
+            for (const physx::PxShape* shape : shapes)
+            {
+                if (!shape) continue;
+
+                const physx::PxShapeFlags flags = shape->getFlags();
+                if (!(flags & physx::PxShapeFlag::eSCENE_QUERY_SHAPE)) continue;
+                if (flags & physx::PxShapeFlag::eTRIGGER_SHAPE) continue;
+
+                const physx::PxGeometryHolder geomHolder = shape->getGeometry();
+                const physx::PxTransform shapePose = pose * shape->getLocalPose();
+                const QueryResult sweepResult =
+                    m_owner_scene->sweep(geomHolder.any(), shapePose, dir, dist, collideMask(), m_actor);
+
+                if (sweepResult.hasHit)
+                {
+                    hasAnyHit = true;
+                    nearestHitDistance = physx::PxMin(nearestHitDistance, sweepResult.distance);
+                }
+            }
+
+            if (hasAnyHit)
+            {
+                // 轻量 skin，避免贴面造成抖动/穿插
+                const float allowed = physx::PxMax(0.0f, nearestHitDistance - kKinematicSweepSkin);
+                finalMove = dir * allowed;
+            }
+        }
     }
 
     pose.p += finalMove;

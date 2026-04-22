@@ -86,6 +86,12 @@ public:
                       const physx::PxVec3& unitDir,
                       float distance,
                       uint32_t queryMask = PHYSXAPI_ALL_LAYERS);
+    QueryResult sweep(const physx::PxGeometry& geometry,
+                      const physx::PxTransform& pose,
+                      const physx::PxVec3& unitDir,
+                      float distance,
+                      uint32_t queryMask,
+                      const physx::PxRigidActor* ignoreActor);
     QueryBatchResult sweepBatch(const std::vector<SweepRequest>& requests);
     QueryResult overlap(const physx::PxGeometry& geometry,
                         const physx::PxTransform& pose,

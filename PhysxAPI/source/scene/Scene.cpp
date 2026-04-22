@@ -97,6 +97,39 @@ public:
         return physx::PxQueryHitType::eBLOCK;
     }
 };
+
+class IgnoreActorQueryMaskFilterCallback final : public physx::PxQueryFilterCallback
+{
+public:
+    explicit IgnoreActorQueryMaskFilterCallback(const physx::PxRigidActor* ignoreActor)
+        : m_ignore_actor(ignoreActor)
+    {
+    }
+
+    physx::PxQueryHitType::Enum preFilter(const physx::PxFilterData& queryFilterData,
+                                          const physx::PxShape* shape,
+                                          const physx::PxRigidActor* actor,
+                                          physx::PxHitFlags&) override
+    {
+        if (actor && m_ignore_actor && actor == m_ignore_actor) return physx::PxQueryHitType::eNONE;
+        if (!shape) return physx::PxQueryHitType::eNONE;
+        const physx::PxFilterData shapeFilterData = shape->getQueryFilterData();
+        return (shapeFilterData.word0 & queryFilterData.word0) != 0
+                   ? physx::PxQueryHitType::eBLOCK
+                   : physx::PxQueryHitType::eNONE;
+    }
+
+    physx::PxQueryHitType::Enum postFilter(const physx::PxFilterData&,
+                                           const physx::PxQueryHit&,
+                                           const physx::PxShape*,
+                                           const physx::PxRigidActor*) override
+    {
+        return physx::PxQueryHitType::eBLOCK;
+    }
+
+private:
+    const physx::PxRigidActor* m_ignore_actor;
+};
 } // namespace
 
 void SceneSimulationEventCallbackImpl::onContact(const physx::PxContactPairHeader& pairHeader,
@@ -382,6 +415,31 @@ QueryResult Scene::sweep(const physx::PxGeometry& geometry,
     const physx::PxQueryFilterData filterData = MakeQueryMaskFilterData(queryMask);
 
     QueryMaskFilterCallback filterCallback;
+    const bool hasHit = m_px_scene->sweep(geometry,
+                                          pose,
+                                          unitDir.getNormalized(),
+                                          distance,
+                                          hit,
+                                          physx::PxHitFlag::eDEFAULT,
+                                          filterData,
+                                          &filterCallback);
+    if (!hasHit || !hit.hasBlock) return {};
+    return QueryResult::fromSweepHit(hit.block);
+}
+
+QueryResult Scene::sweep(const physx::PxGeometry& geometry,
+                         const physx::PxTransform& pose,
+                         const physx::PxVec3& unitDir,
+                         float distance,
+                         uint32_t queryMask,
+                         const physx::PxRigidActor* ignoreActor)
+{
+    if (!m_px_scene || distance <= 0.0f || unitDir.magnitudeSquared() < 1e-6f) return {};
+
+    physx::PxSweepBuffer hit;
+    const physx::PxQueryFilterData filterData = MakeQueryMaskFilterData(queryMask);
+
+    IgnoreActorQueryMaskFilterCallback filterCallback(ignoreActor);
     const bool hasHit = m_px_scene->sweep(geometry,
                                           pose,
                                           unitDir.getNormalized(),
