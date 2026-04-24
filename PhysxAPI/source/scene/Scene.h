@@ -63,6 +63,8 @@ struct SceneCharacterHitEvent
 class Scene
 {
 public:
+    static constexpr float kDefaultFixedDeltaTime = 1.0f / 60.0f;
+
     explicit Scene(float fixed_dt);
     ~Scene();
     bool initialize();
@@ -107,7 +109,7 @@ public:
     physx::PxUserControllerHitReport* controllerHitReport() const;
 
     /** 固定时间步（用于 simulate / CCT move 的 elapsedTime），<=0 时回落到 1/60 */
-    float fixedDeltaTime() const { return (m_fixed_dt > 0.0f) ? m_fixed_dt : (1.0f / 60.0f); }
+    float fixedDeltaTime() const { return (m_fixed_dt > 0.0f) ? m_fixed_dt : kDefaultFixedDeltaTime; }
 
     /** 角色控制器共用：世界向上轴（建议单位向量） */
     physx::PxVec3 characterControllerUpDirection() const { return m_character_up; }

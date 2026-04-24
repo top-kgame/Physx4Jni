@@ -10,6 +10,11 @@
 #include <cmath>
 #include <vector>
 
+namespace
+{
+constexpr float kDefaultCharacterControllerMinMoveDistance = 0.001f;
+} // namespace
+
 SceneCharacterObj::SceneCharacterObj(Scene* owner, float radius, float height, const physx::PxExtendedVec3& position)
     : SceneObj(owner),
       m_radius(radius),
@@ -93,8 +98,8 @@ void SceneCharacterObj::move(const physx::PxVec3* movement)
 {
     if (!m_controller || !movement) return;
     physx::PxControllerFilters filters;
-    const float minDist = m_owner_scene ? m_owner_scene->characterControllerMinMoveDistance() : 0.001f;
-    const float dt = m_owner_scene ? m_owner_scene->fixedDeltaTime() : (1.0f / 60.0f);
+    const float minDist = m_owner_scene ? m_owner_scene->characterControllerMinMoveDistance() : kDefaultCharacterControllerMinMoveDistance;
+    const float dt = m_owner_scene ? m_owner_scene->fixedDeltaTime() : Scene::kDefaultFixedDeltaTime;
     m_controller->move(*movement, minDist, dt, filters);
 }
 

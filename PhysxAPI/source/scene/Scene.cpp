@@ -303,8 +303,7 @@ void Scene::update()
 {
     if (!m_px_scene) return;
     beginUpdateEventCollection();
-    const float dt = (m_fixed_dt > 0.0f) ? m_fixed_dt : (1.0f / 60.0f);
-    m_px_scene->simulate(dt);
+    m_px_scene->simulate(fixedDeltaTime());
     m_px_scene->fetchResults(true);
     finalizeTriggerEvents();
 }
