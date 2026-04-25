@@ -74,7 +74,6 @@ public:
     SceneObj* createStaticObject();
     SceneObj* createRigidObject();
     SceneObj* createKinematicObject();
-    SceneObj* createTriggerObject();
     SceneObj* createCharacterObject(float radius, float height, const physx::PxExtendedVec3& position);
     void destroyObject(SceneObj* obj);
 
@@ -93,7 +92,7 @@ public:
                       const physx::PxVec3& unitDir,
                       float distance,
                       uint32_t queryMask,
-                      const physx::PxRigidActor* ignoreActor);
+                      const SceneObj* ignoreOwner);
     QueryBatchResult sweepBatch(const std::vector<SweepRequest>& requests);
     QueryResult overlap(const physx::PxGeometry& geometry,
                         const physx::PxTransform& pose,

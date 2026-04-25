@@ -7,7 +7,6 @@
 #include "object/SceneRigidObj.h"
 #include "object/SceneKinematicObj.h"
 #include "object/SceneCharacterObj.h"
-#include "object/SceneTriggerObj.h"
 
 int main()
 {
@@ -28,10 +27,10 @@ int main()
     // Ground
     auto* ground = scene->createStaticObject();
     auto* groundStatic = dynamic_cast<SceneStaticObj*>(ground);
-    if (groundStatic)
+    if (groundStatic && groundStatic->primaryActorRecord())
     {
-        groundStatic->setCollisionFilter(LAYER_GROUND, LAYER_RIGID);
-        auto* shape = groundStatic->createBoxShape(physx::PxVec3(0.5f, 0.5f, 0.5f));
+        groundStatic->primaryActorRecord()->setCollisionFilter(LAYER_GROUND, LAYER_RIGID);
+        auto* shape = groundStatic->primaryActorRecord()->createBoxShape(physx::PxVec3(0.5f, 0.5f, 0.5f));
         groundStatic->attachShape(shape);
         physx::PxVec3 p(0, -1, 0);
         groundStatic->teleport(&p);
@@ -40,10 +39,10 @@ int main()
     // Dynamic box
     auto* rigid = scene->createRigidObject();
     auto* rigidObj = dynamic_cast<SceneRigidObj*>(rigid);
-    if (rigidObj)
+    if (rigidObj && rigidObj->primaryActorRecord())
     {
-        rigidObj->setCollisionFilter(LAYER_RIGID, LAYER_GROUND | LAYER_BLOCKED_GROUND);
-        auto* shape = rigidObj->createBoxShape(physx::PxVec3(0.5f, 0.5f, 0.5f));
+        rigidObj->primaryActorRecord()->setCollisionFilter(LAYER_RIGID, LAYER_GROUND | LAYER_BLOCKED_GROUND);
+        auto* shape = rigidObj->primaryActorRecord()->createBoxShape(physx::PxVec3(0.5f, 0.5f, 0.5f));
         rigidObj->attachShape(shape);
         physx::PxVec3 p(0, 5, 0);
         rigidObj->teleport(&p);
@@ -52,10 +51,10 @@ int main()
     // Ground that should be ignored by another rigid due to layer/mask mismatch.
     auto* blockedGround = scene->createStaticObject();
     auto* blockedGroundObj = dynamic_cast<SceneStaticObj*>(blockedGround);
-    if (blockedGroundObj)
+    if (blockedGroundObj && blockedGroundObj->primaryActorRecord())
     {
-        blockedGroundObj->setCollisionFilter(LAYER_BLOCKED_GROUND, LAYER_BLOCKED_GROUND);
-        auto* shape = blockedGroundObj->createBoxShape(physx::PxVec3(0.5f, 0.5f, 0.5f));
+        blockedGroundObj->primaryActorRecord()->setCollisionFilter(LAYER_BLOCKED_GROUND, LAYER_BLOCKED_GROUND);
+        auto* shape = blockedGroundObj->primaryActorRecord()->createBoxShape(physx::PxVec3(0.5f, 0.5f, 0.5f));
         blockedGroundObj->attachShape(shape);
         physx::PxVec3 p(2, -1, 0);
         blockedGroundObj->teleport(&p);
@@ -63,10 +62,10 @@ int main()
 
     auto* fallthroughRigid = scene->createRigidObject();
     auto* fallthroughRigidObj = dynamic_cast<SceneRigidObj*>(fallthroughRigid);
-    if (fallthroughRigidObj)
+    if (fallthroughRigidObj && fallthroughRigidObj->primaryActorRecord())
     {
-        fallthroughRigidObj->setCollisionFilter(LAYER_FALLTHROUGH, LAYER_FALLTHROUGH);
-        auto* shape = fallthroughRigidObj->createBoxShape(physx::PxVec3(0.5f, 0.5f, 0.5f));
+        fallthroughRigidObj->primaryActorRecord()->setCollisionFilter(LAYER_FALLTHROUGH, LAYER_FALLTHROUGH);
+        auto* shape = fallthroughRigidObj->primaryActorRecord()->createBoxShape(physx::PxVec3(0.5f, 0.5f, 0.5f));
         fallthroughRigidObj->attachShape(shape);
         physx::PxVec3 p(2, 5, 0);
         fallthroughRigidObj->teleport(&p);
@@ -75,36 +74,37 @@ int main()
     // Kinematic (just to ensure it creates)
     auto* kinematic = scene->createKinematicObject();
     auto* kinematicObj = dynamic_cast<SceneKinematicObj*>(kinematic);
-    if (kinematicObj)
+    if (kinematicObj && kinematicObj->primaryActorRecord())
     {
-        kinematicObj->setCollisionFilter(LAYER_RIGID, LAYER_GROUND);
+        kinematicObj->primaryActorRecord()->setCollisionFilter(LAYER_RIGID, LAYER_GROUND);
     }
 
-    // Trigger (just to ensure it creates)
-    auto* trigger = scene->createTriggerObject();
-    auto* triggerObj = dynamic_cast<SceneTriggerObj*>(trigger);
-    if (triggerObj)
+    // Trigger role attached to a static movement object.
+    auto* trigger = scene->createStaticObject();
+    auto* triggerObj = dynamic_cast<SceneStaticObj*>(trigger);
+    if (triggerObj && triggerObj->primaryActorRecord())
     {
-        triggerObj->setCollisionFilter(LAYER_BLOCKED_GROUND, PHYSXAPI_ALL_LAYERS);
-        auto* shape = triggerObj->createBoxShape(physx::PxVec3(0.5f, 0.5f, 0.5f));
-        triggerObj->attachTriggerShape(shape);
+        auto* shape = triggerObj->primaryActorRecord()->createBoxShape(physx::PxVec3(0.5f, 0.5f, 0.5f));
+        triggerObj->addTriggerShape(shape);
         physx::PxVec3 p(0, 1, 0);
         triggerObj->teleport(&p);
     }
 
     auto* character = scene->createCharacterObject(0.3f, 1.0f, physx::PxExtendedVec3(4.0, 2.0, 0.0));
     auto* characterObj = dynamic_cast<SceneCharacterObj*>(character);
-    if (characterObj)
+    if (characterObj && characterObj->primaryActorRecord())
     {
-        characterObj->setCollisionFilter(LAYER_RIGID, LAYER_GROUND);
+        characterObj->primaryActorRecord()->setCollisionFilter(LAYER_RIGID, LAYER_GROUND);
+        auto* triggerShape = characterObj->primaryActorRecord()->createBoxShape(physx::PxVec3(0.2f, 0.2f, 0.2f));
+        characterObj->addHitboxShape(triggerShape, physx::PxTransform(physx::PxVec3(0.0f, 0.5f, 0.0f)));
     }
 
     auto* characterWall = scene->createStaticObject();
     auto* characterWallObj = dynamic_cast<SceneStaticObj*>(characterWall);
-    if (characterWallObj)
+    if (characterWallObj && characterWallObj->primaryActorRecord())
     {
-        characterWallObj->setCollisionFilter(LAYER_GROUND, LAYER_RIGID);
-        auto* shape = characterWallObj->createBoxShape(physx::PxVec3(0.2f, 1.0f, 1.0f));
+        characterWallObj->primaryActorRecord()->setCollisionFilter(LAYER_GROUND, LAYER_RIGID);
+        auto* shape = characterWallObj->primaryActorRecord()->createBoxShape(physx::PxVec3(0.2f, 1.0f, 1.0f));
         characterWallObj->attachShape(shape);
         physx::PxVec3 p(4.8f, 0.5f, 0.0f);
         characterWallObj->teleport(&p);

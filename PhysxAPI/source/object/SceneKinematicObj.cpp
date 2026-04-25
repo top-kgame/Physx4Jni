@@ -10,13 +10,11 @@
 #include <PxPhysicsAPI.h>
 
 #include <cmath>
-#include <vector>
 
 SceneKinematicObj::SceneKinematicObj(Scene* owner)
     : SceneObj(owner),
       m_actor(nullptr)
 {
-    setObjectFlags(PHYSXAPI_OBJECT_FLAG_KINEMATIC);
 }
 
 SceneKinematicObj::~SceneKinematicObj()
@@ -33,39 +31,27 @@ bool SceneKinematicObj::initialize()
     if (!m_actor) return false;
 
     m_actor->setRigidBodyFlag(physx::PxRigidBodyFlag::eKINEMATIC, true);
-    m_actor->userData = this;
+    ActorFilterConfig filter;
+    filter.objectFlags = PHYSXAPI_OBJECT_FLAG_KINEMATIC;
+    registerActor(m_actor, ActorRole::PRIMARY, physx::PxTransform(physx::PxIdentity), true, false, filter);
     m_owner_scene->pxScene()->addActor(*m_actor);
     return true;
 }
 
 void SceneKinematicObj::attachShape(physx::PxShape* shape)
 {
-    if (!m_actor || !shape) return;
-    applyFilterDataToShape(shape);
-    m_actor->attachShape(*shape);
-    // attach 后释放本地引用，避免泄漏
-    shape->release();
+    SceneObj::attachShape(ActorRole::PRIMARY, shape);
 }
 
 bool SceneKinematicObj::detachShape(physx::PxShape* shape)
 {
-    if (!shape) return false;
-    if (m_actor)
-    {
-        m_actor->detachShape(*shape);
-    }
-    shape->release();
-    return true;
+    return SceneObj::detachShape(ActorRole::PRIMARY, shape);
 }
 
 void SceneKinematicObj::destroy()
 {
     if (!m_actor) return;
-    if (m_owner_scene && m_owner_scene->pxScene())
-    {
-        m_owner_scene->pxScene()->removeActor(*m_actor);
-    }
-    m_actor->release();
+    destroyRegisteredActors();
     m_actor = nullptr;
 }
 
@@ -79,18 +65,9 @@ void SceneKinematicObj::makeDynamic(float density)
     }
 }
 
-void SceneKinematicObj::refreshFilterData()
+physx::PxTransform SceneKinematicObj::logicalPose() const
 {
-    if (!m_actor) return;
-    const physx::PxU32 shapeCount = m_actor->getNbShapes();
-    if (shapeCount == 0) return;
-
-    std::vector<physx::PxShape*> shapes(shapeCount, nullptr);
-    m_actor->getShapes(shapes.data(), shapeCount);
-    for (physx::PxShape* shape : shapes)
-    {
-        applyFilterDataToShape(shape);
-    }
+    return m_actor ? m_actor->getGlobalPose() : physx::PxTransform(physx::PxIdentity);
 }
 
 namespace
@@ -131,8 +108,10 @@ void SceneKinematicObj::move(const physx::PxVec3* movement)
 
                 const physx::PxGeometryHolder geomHolder = shape->getGeometry();
                 const physx::PxTransform shapePose = pose * shape->getLocalPose();
+                const ActorRecord* primary = primaryActorRecord();
+                const uint32_t collideMask = primary ? primary->collideMask() : PHYSXAPI_ALL_LAYERS;
                 const QueryResult sweepResult =
-                    m_owner_scene->sweep(geomHolder.any(), shapePose, dir, dist, collideMask(), m_actor);
+                    m_owner_scene->sweep(geomHolder.any(), shapePose, dir, dist, collideMask, this);
 
                 if (sweepResult.hasHit)
                 {
@@ -152,6 +131,7 @@ void SceneKinematicObj::move(const physx::PxVec3* movement)
 
     pose.p += finalMove;
     m_actor->setKinematicTarget(pose);
+    syncAttachedActorsPose(pose);
 }
 
 void SceneKinematicObj::move_to(const physx::PxVec3* target_pos)
@@ -170,6 +150,7 @@ void SceneKinematicObj::teleport(const physx::PxVec3* target_pos)
     m_actor->setGlobalPose(pose);
     m_actor->setLinearVelocity(physx::PxVec3(0));
     m_actor->setAngularVelocity(physx::PxVec3(0));
+    syncAttachedActorsPose(pose);
 }
 
 void SceneKinematicObj::faceTo(const physx::PxVec3* target_pos)
@@ -182,6 +163,7 @@ void SceneKinematicObj::faceTo(const physx::PxVec3* target_pos)
     const float yaw = std::atan2f(f.x, f.z);
     pose.q = physx::PxQuat(yaw, PhysxApiWorldUp());
     m_actor->setGlobalPose(pose);
+    syncAttachedActorsPose(pose);
 }
 
 void SceneKinematicObj::factTo(physx::PxQuat* rotation)
@@ -190,5 +172,6 @@ void SceneKinematicObj::factTo(physx::PxQuat* rotation)
     auto pose = m_actor->getGlobalPose();
     pose.q = *rotation;
     m_actor->setGlobalPose(pose);
+    syncAttachedActorsPose(pose);
 }
 

@@ -15,7 +15,7 @@ public:
 
     bool initialize(bool kinematic);
     void attachShape(physx::PxShape* shape);
-    bool detachShape(physx::PxShape* shape) override;
+    bool detachShape(physx::PxShape* shape);
     void destroy() override;
 
     void move(const physx::PxVec3* movement) override;
@@ -30,7 +30,7 @@ public:
     physx::PxRigidDynamic* actor() const { return m_actor; }
 
 private:
-    void refreshFilterData() override;
+    physx::PxTransform logicalPose() const override;
     physx::PxRigidDynamic* m_actor;
 };
 

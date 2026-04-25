@@ -7,28 +7,83 @@
 
 #include "../PhysxApiCommon.h"
 
+#include <functional>
+#include <vector>
+
 class Scene;
 
 class SceneObj
 {
 public:
+    enum class ActorRole
+    {
+        UNKNOWN,
+        PRIMARY,
+        COLLIDER,
+        HITBOX,
+        HURTBOX,
+        TRIGGER,
+        CUSTOM,
+    };
+
+    struct ActorFilterConfig
+    {
+        uint32_t layer{PHYSXAPI_DEFAULT_LAYER};
+        uint32_t collideMask{PHYSXAPI_ALL_LAYERS};
+        uint32_t objectFlags{PHYSXAPI_OBJECT_FLAG_NONE};
+    };
+
+    struct ActorRecord
+    {
+        SceneObj* owner{nullptr};
+        physx::PxRigidActor* actor{nullptr};
+        ActorRole role{ActorRole::UNKNOWN};
+        physx::PxTransform localPose{physx::PxIdentity};
+        bool owned{true};
+        bool syncPose{false};
+        bool updateMassOnShapeChange{false};
+        float density{PHYSXAPI_DEFAULT_DENSITY};
+        ActorFilterConfig filter{};
+
+        physx::PxShape* createBoxShape(const physx::PxVec3& halfExtents) const;
+        physx::PxShape* createSphereShape(float radius) const;
+        physx::PxShape* createCapsuleShape(float radius, float halfHeight) const;
+        void setCollisionFilter(uint32_t layer, uint32_t collideMask);
+        void setObjectFlags(uint32_t objectFlags);
+        uint32_t layer() const { return filter.layer; }
+        uint32_t collideMask() const { return filter.collideMask; }
+        uint32_t objectFlags() const { return filter.objectFlags; }
+        physx::PxFilterData simulationFilterData() const;
+        physx::PxFilterData queryFilterData() const;
+        void applyFilterDataToShape(physx::PxShape* shape) const;
+        void refreshFilterData() const;
+        bool attachShape(physx::PxShape* shape);
+        bool detachShape(physx::PxShape* shape);
+    };
+
     explicit SceneObj(Scene* owner);
     virtual ~SceneObj() = default;
 
-    physx::PxShape* createBoxShape(const physx::PxVec3& halfExtents);
-    physx::PxShape* createSphereShape(float radius);
-    physx::PxShape* createCapsuleShape(float radius, float halfHeight);
-
-    void setCollisionFilter(uint32_t layer, uint32_t collideMask);
     uint64_t handle() const { return m_handle; }
-    uint32_t layer() const { return m_layer; }
-    uint32_t collideMask() const { return m_collide_mask; }
-    uint32_t objectFlags() const { return m_object_flags; }
-    /**
-     * detach 并释放 shape（如果仍挂在 actor 上，会先 detach 再 release）
-     * @return 是否成功执行（shape 为 null 返回 false）
-     */
-    virtual bool detachShape(physx::PxShape* shape) = 0;
+
+    ActorRecord* actorRecord(ActorRole role);
+    const ActorRecord* actorRecord(ActorRole role) const;
+    ActorRecord* primaryActorRecord() { return actorRecord(ActorRole::PRIMARY); }
+    const ActorRecord* primaryActorRecord() const { return actorRecord(ActorRole::PRIMARY); }
+    physx::PxRigidActor* primaryActor() const;
+    bool ownsActor(const physx::PxActor* actor) const;
+    void forEachActor(const std::function<void(const ActorRecord&)>& visitor) const;
+    void forEachActor(ActorRole role, const std::function<void(const ActorRecord&)>& visitor) const;
+
+    bool attachShape(ActorRole role, physx::PxShape* shape);
+    bool detachShape(ActorRole role, physx::PxShape* shape);
+    bool addHitboxShape(physx::PxShape* shape,
+                        const physx::PxTransform& localPose = physx::PxTransform(physx::PxIdentity));
+    bool addHurtboxShape(physx::PxShape* shape,
+                         const physx::PxTransform& localPose = physx::PxTransform(physx::PxIdentity));
+    bool addTriggerShape(physx::PxShape* shape,
+                         const physx::PxTransform& localPose = physx::PxTransform(physx::PxIdentity));
+    void syncAttachedActorsToLogicalPose();
 
     /** Scene::destroyObject 调用：从 scene 中移除底层实体并释放 */
     virtual void destroy() = 0;
@@ -64,17 +119,29 @@ public:
     virtual void factTo(physx::PxQuat *rotation) = 0;
 
 protected:
-    [[nodiscard]] physx::PxFilterData simulationFilterData() const;
-    physx::PxFilterData queryFilterData() const;
-    void applyFilterDataToShape(physx::PxShape* shape) const;
-    void setObjectFlags(uint32_t objectFlags);
-    virtual void refreshFilterData() = 0;
+    ActorRecord* registerActor(physx::PxRigidActor* actor,
+                               ActorRole role,
+                               const physx::PxTransform& localPose,
+                               bool owned,
+                               bool syncPose,
+                               const ActorFilterConfig& filter,
+                               bool updateMassOnShapeChange = false,
+                               float density = PHYSXAPI_DEFAULT_DENSITY);
+    bool unregisterActor(physx::PxRigidActor* actor, bool releaseOwnedActor);
+    void destroyRegisteredActors();
+    ActorRecord* createAttachedKinematicActor(ActorRole role,
+                                              const physx::PxTransform& localPose,
+                                              const ActorFilterConfig& filter);
+    bool addAttachedShape(ActorRole role,
+                          physx::PxShape* shape,
+                          const physx::PxTransform& localPose,
+                          const ActorFilterConfig& filter);
+    void syncAttachedActorsPose(const physx::PxTransform& logicalPose);
+    virtual physx::PxTransform logicalPose() const = 0;
 
     Scene* m_owner_scene;
     uint64_t m_handle;
-    uint32_t m_layer;
-    uint32_t m_collide_mask;
-    uint32_t m_object_flags;
+    std::vector<ActorRecord> m_actor_records;
 };
 
 

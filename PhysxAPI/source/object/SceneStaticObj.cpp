@@ -8,7 +8,6 @@
 #include "../scene/Scene.h"
 
 #include <cmath>
-#include <vector>
 
 SceneStaticObj::SceneStaticObj(Scene* owner)
     : SceneObj(owner),
@@ -27,54 +26,31 @@ bool SceneStaticObj::initialize()
     if (!physics || !m_owner_scene) return false;
     m_actor = physics->createRigidStatic(physx::PxTransform(physx::PxIdentity));
     if (!m_actor) return false;
-    m_actor->userData = this;
+    registerActor(m_actor, ActorRole::PRIMARY, physx::PxTransform(physx::PxIdentity), true, false, ActorFilterConfig{});
     m_owner_scene->pxScene()->addActor(*m_actor);
     return true;
 }
 
 void SceneStaticObj::attachShape(physx::PxShape* shape)
 {
-    if (!m_actor || !shape) return;
-    applyFilterDataToShape(shape);
-    m_actor->attachShape(*shape);
-    // createShape 返回的 shape 由调用方持有一次引用；attach 后释放本地引用，避免泄漏
-    shape->release();
+    SceneObj::attachShape(ActorRole::PRIMARY, shape);
 }
 
 bool SceneStaticObj::detachShape(physx::PxShape* shape)
 {
-    if (!shape) return false;
-    if (m_actor)
-    {
-        m_actor->detachShape(*shape);
-    }
-    shape->release();
-    return true;
+    return SceneObj::detachShape(ActorRole::PRIMARY, shape);
 }
 
 void SceneStaticObj::destroy()
 {
     if (!m_actor) return;
-    if (m_owner_scene && m_owner_scene->pxScene())
-    {
-        m_owner_scene->pxScene()->removeActor(*m_actor);
-    }
-    m_actor->release();
+    destroyRegisteredActors();
     m_actor = nullptr;
 }
 
-void SceneStaticObj::refreshFilterData()
+physx::PxTransform SceneStaticObj::logicalPose() const
 {
-    if (!m_actor) return;
-    const physx::PxU32 shapeCount = m_actor->getNbShapes();
-    if (shapeCount == 0) return;
-
-    std::vector<physx::PxShape*> shapes(shapeCount, nullptr);
-    m_actor->getShapes(shapes.data(), shapeCount);
-    for (physx::PxShape* shape : shapes)
-    {
-        applyFilterDataToShape(shape);
-    }
+    return m_actor ? m_actor->getGlobalPose() : physx::PxTransform(physx::PxIdentity);
 }
 
 void SceneStaticObj::move(const physx::PxVec3* movement)
@@ -83,6 +59,7 @@ void SceneStaticObj::move(const physx::PxVec3* movement)
     auto pose = m_actor->getGlobalPose();
     pose.p += *movement;
     m_actor->setGlobalPose(pose);
+    syncAttachedActorsPose(pose);
 }
 
 void SceneStaticObj::move_to(const physx::PxVec3* target_pos)
@@ -96,6 +73,7 @@ void SceneStaticObj::teleport(const physx::PxVec3* target_pos)
     auto pose = m_actor->getGlobalPose();
     pose.p = *target_pos;
     m_actor->setGlobalPose(pose);
+    syncAttachedActorsPose(pose);
 }
 
 void SceneStaticObj::faceTo(const physx::PxVec3* target_pos)
@@ -109,6 +87,7 @@ void SceneStaticObj::faceTo(const physx::PxVec3* target_pos)
     const float yaw = std::atan2f(f.x, f.z);
     pose.q = physx::PxQuat(yaw, PhysxApiWorldUp());
     m_actor->setGlobalPose(pose);
+    syncAttachedActorsPose(pose);
 }
 
 void SceneStaticObj::factTo(physx::PxQuat* rotation)
@@ -117,4 +96,5 @@ void SceneStaticObj::factTo(physx::PxQuat* rotation)
     auto pose = m_actor->getGlobalPose();
     pose.q = *rotation;
     m_actor->setGlobalPose(pose);
+    syncAttachedActorsPose(pose);
 }

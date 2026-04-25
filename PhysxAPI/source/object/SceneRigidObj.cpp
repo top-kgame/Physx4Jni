@@ -8,7 +8,6 @@
 #include "../scene/Scene.h"
 
 #include <cmath>
-#include <vector>
 
 SceneRigidObj::SceneRigidObj(Scene* owner)
     : SceneObj(owner),
@@ -30,55 +29,31 @@ bool SceneRigidObj::initialize(bool kinematic)
     if (!m_actor) return false;
 
     m_actor->setRigidBodyFlag(physx::PxRigidBodyFlag::eKINEMATIC, kinematic);
-    m_actor->userData = this;
+    registerActor(m_actor, ActorRole::PRIMARY, physx::PxTransform(physx::PxIdentity), true, false, ActorFilterConfig{}, true);
     m_owner_scene->pxScene()->addActor(*m_actor);
     return true;
 }
 
 void SceneRigidObj::attachShape(physx::PxShape* shape)
 {
-    if (!m_actor || !shape) return;
-    applyFilterDataToShape(shape);
-    m_actor->attachShape(*shape);
-    physx::PxRigidBodyExt::updateMassAndInertia(*m_actor, PHYSXAPI_DEFAULT_DENSITY);
-    // attach 后释放本地引用，避免泄漏
-    shape->release();
+    SceneObj::attachShape(ActorRole::PRIMARY, shape);
 }
 
 bool SceneRigidObj::detachShape(physx::PxShape* shape)
 {
-    if (!shape) return false;
-    if (m_actor)
-    {
-        m_actor->detachShape(*shape);
-    }
-    shape->release();
-    return true;
+    return SceneObj::detachShape(ActorRole::PRIMARY, shape);
 }
 
 void SceneRigidObj::destroy()
 {
     if (!m_actor) return;
-    if (m_owner_scene && m_owner_scene->pxScene())
-    {
-        m_owner_scene->pxScene()->removeActor(*m_actor);
-    }
-    m_actor->release();
+    destroyRegisteredActors();
     m_actor = nullptr;
 }
 
-void SceneRigidObj::refreshFilterData()
+physx::PxTransform SceneRigidObj::logicalPose() const
 {
-    if (!m_actor) return;
-    const physx::PxU32 shapeCount = m_actor->getNbShapes();
-    if (shapeCount == 0) return;
-
-    std::vector<physx::PxShape*> shapes(shapeCount, nullptr);
-    m_actor->getShapes(shapes.data(), shapeCount);
-    for (physx::PxShape* shape : shapes)
-    {
-        applyFilterDataToShape(shape);
-    }
+    return m_actor ? m_actor->getGlobalPose() : physx::PxTransform(physx::PxIdentity);
 }
 
 void SceneRigidObj::move(const physx::PxVec3* movement)
@@ -90,6 +65,7 @@ void SceneRigidObj::move(const physx::PxVec3* movement)
     const physx::PxVec3 vel = (*movement) / dt;
     m_actor->setLinearVelocity(vel);
     m_actor->wakeUp();
+    // Dynamic simulation advances asynchronously; secondary actors follow after explicit pose sync.
 }
 
 void SceneRigidObj::move_to(const physx::PxVec3* target_pos)
@@ -105,6 +81,7 @@ void SceneRigidObj::teleport(const physx::PxVec3* target_pos)
     m_actor->setGlobalPose(pose);
     m_actor->setLinearVelocity(physx::PxVec3(0));
     m_actor->setAngularVelocity(physx::PxVec3(0));
+    syncAttachedActorsPose(pose);
 }
 
 void SceneRigidObj::faceTo(const physx::PxVec3* target_pos)
@@ -117,6 +94,7 @@ void SceneRigidObj::faceTo(const physx::PxVec3* target_pos)
     const float yaw = std::atan2f(f.x, f.z);
     pose.q = physx::PxQuat(yaw, PhysxApiWorldUp());
     m_actor->setGlobalPose(pose);
+    syncAttachedActorsPose(pose);
 }
 
 void SceneRigidObj::factTo(physx::PxQuat* rotation)
@@ -125,6 +103,7 @@ void SceneRigidObj::factTo(physx::PxQuat* rotation)
     auto pose = m_actor->getGlobalPose();
     pose.q = *rotation;
     m_actor->setGlobalPose(pose);
+    syncAttachedActorsPose(pose);
 }
 
 void SceneRigidObj::enableCCD(bool enable)

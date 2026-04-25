@@ -7,8 +7,9 @@
 #include "../PhysxApi.h"
 #include "../scene/Scene.h"
 
+#include <PxPhysicsAPI.h>
+
 #include <cmath>
-#include <vector>
 
 namespace
 {
@@ -20,9 +21,9 @@ SceneCharacterObj::SceneCharacterObj(Scene* owner, float radius, float height, c
       m_radius(radius),
       m_height(height),
       m_position(position),
+      m_rotation(physx::PxIdentity),
       m_controller(nullptr)
 {
-    setObjectFlags(PHYSXAPI_OBJECT_FLAG_CHARACTER);
 }
 
 SceneCharacterObj::~SceneCharacterObj()
@@ -56,42 +57,33 @@ bool SceneCharacterObj::initialize()
         m_controller->setUserData(this);
         if (auto* actor = m_controller->getActor())
         {
-            actor->userData = this;
+            ActorFilterConfig filter;
+            filter.objectFlags = PHYSXAPI_OBJECT_FLAG_CHARACTER;
+            ActorRecord* record = registerActor(actor, ActorRole::PRIMARY, physx::PxTransform(physx::PxIdentity), false, false, filter);
+            if (record) record->refreshFilterData();
         }
     }
-    refreshFilterData();
+    syncAttachedActorsPose(logicalPose());
     return m_controller != nullptr;
-}
-
-bool SceneCharacterObj::detachShape(physx::PxShape* shape)
-{
-    // CCT 不提供 shape attach/detach 的封装入口（controller 内部形状不对外暴露）
-    (void)shape;
-    return false;
 }
 
 void SceneCharacterObj::destroy()
 {
-    if (!m_controller) return;
-    m_controller->release();
-    m_controller = nullptr;
+    destroyRegisteredActors();
+    if (m_controller)
+    {
+        m_controller->release();
+        m_controller = nullptr;
+    }
 }
 
-void SceneCharacterObj::refreshFilterData()
+physx::PxTransform SceneCharacterObj::logicalPose() const
 {
-    if (!m_controller) return;
-    physx::PxRigidDynamic* actor = m_controller->getActor();
-    if (!actor) return;
-
-    const physx::PxU32 shapeCount = actor->getNbShapes();
-    if (shapeCount == 0) return;
-
-    std::vector<physx::PxShape*> shapes(shapeCount, nullptr);
-    actor->getShapes(shapes.data(), shapeCount);
-    for (physx::PxShape* shape : shapes)
-    {
-        applyFilterDataToShape(shape);
-    }
+    const physx::PxExtendedVec3 cur = m_controller ? m_controller->getPosition() : m_position;
+    return physx::PxTransform(physx::PxVec3(static_cast<float>(cur.x),
+                                            static_cast<float>(cur.y),
+                                            static_cast<float>(cur.z)),
+                              m_rotation);
 }
 
 void SceneCharacterObj::move(const physx::PxVec3* movement)
@@ -101,27 +93,55 @@ void SceneCharacterObj::move(const physx::PxVec3* movement)
     const float minDist = m_owner_scene ? m_owner_scene->characterControllerMinMoveDistance() : kDefaultCharacterControllerMinMoveDistance;
     const float dt = m_owner_scene ? m_owner_scene->fixedDeltaTime() : Scene::kDefaultFixedDeltaTime;
     m_controller->move(*movement, minDist, dt, filters);
+    syncAttachedActorsPose(logicalPose());
 }
 
 void SceneCharacterObj::move_to(const physx::PxVec3* target_pos)
 {
-    teleport(target_pos);
+    if (!m_controller || !target_pos) return;
+    const physx::PxExtendedVec3 cur = m_controller->getPosition();
+    const physx::PxVec3 movement(target_pos->x - static_cast<float>(cur.x),
+                                 target_pos->y - static_cast<float>(cur.y),
+                                 target_pos->z - static_cast<float>(cur.z));
+    move(&movement);
 }
 
 void SceneCharacterObj::teleport(const physx::PxVec3* target_pos)
 {
     if (!m_controller || !target_pos) return;
     m_controller->setPosition(physx::PxExtendedVec3(target_pos->x, target_pos->y, target_pos->z));
+    syncAttachedActorsPose(logicalPose());
 }
 
 void SceneCharacterObj::faceTo(const physx::PxVec3* target_pos)
 {
-    // CCT 本身没有强制朝向；这里留空作为最小实现（由上层角色逻辑维护朝向）
-    (void)target_pos;
+    if (!m_controller || !target_pos) return;
+    const physx::PxExtendedVec3 cur = m_controller->getPosition();
+    const physx::PxVec3 cur3(static_cast<float>(cur.x), static_cast<float>(cur.y), static_cast<float>(cur.z));
+    const physx::PxVec3 dir = (*target_pos - cur3);
+    if (dir.magnitudeSquared() < 1e-6f) return;
+    const physx::PxVec3 f = dir.getNormalized();
+    const float yaw = std::atan2f(f.x, f.z);
+    m_rotation = physx::PxQuat(yaw, PhysxApiWorldUp());
+    syncAttachedActorsPose(logicalPose());
 }
 
 void SceneCharacterObj::factTo(physx::PxQuat* rotation)
 {
-    (void)rotation;
+    if (!rotation) return;
+    m_rotation = *rotation;
+    syncAttachedActorsPose(logicalPose());
+}
+
+bool SceneCharacterObj::addHitboxShape(physx::PxShape* shape, const physx::PxTransform& localPose)
+{
+    if (!m_controller) return false;
+    return SceneObj::addHitboxShape(shape, localPose);
+}
+
+bool SceneCharacterObj::addTriggerShape(physx::PxShape* shape, const physx::PxTransform& localPose)
+{
+    if (!m_controller) return false;
+    return SceneObj::addTriggerShape(shape, localPose);
 }
 

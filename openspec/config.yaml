@@ -1,0 +1,15 @@
+schema: spec-driven
+
+context: |
+  OpenSpec 产物语言：proposal、design、specs、tasks 等变更文档默认使用简体中文编写。
+  保留 OpenSpec 规范关键字、代码符号、文件路径、API 名称、枚举值和命令原文，例如 SHALL、MUST、WHEN、THEN、Requirement、Scenario、`actor()`。
+
+rules:
+  proposal:
+    - 使用简体中文描述背景、变更内容、能力和影响。
+  design:
+    - 使用简体中文描述设计决策、风险、迁移计划和未决问题。
+  specs:
+    - 使用简体中文描述需求和场景；保留 SHALL、MUST、WHEN、THEN 等规范关键字。
+  tasks:
+    - 使用简体中文编写任务说明；保留 `- [ ]` 复选框格式和任务编号。

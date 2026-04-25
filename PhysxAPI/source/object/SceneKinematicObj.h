@@ -15,7 +15,7 @@ public:
 
     bool initialize();
     void attachShape(physx::PxShape* shape);
-    bool detachShape(physx::PxShape* shape) override;
+    bool detachShape(physx::PxShape* shape);
     void destroy() override;
 
     /** 从 kinematic 切到 dynamic 时调用，并重新计算质量/惯性（density 由上层决定） */
@@ -30,7 +30,7 @@ public:
     physx::PxRigidDynamic* actor() const { return m_actor; }
 
 private:
-    void refreshFilterData() override;
+    physx::PxTransform logicalPose() const override;
     physx::PxRigidDynamic* m_actor;
 };
 

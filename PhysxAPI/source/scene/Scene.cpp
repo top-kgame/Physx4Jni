@@ -11,7 +11,6 @@
 #include "../object/SceneStaticObj.h"
 #include "../object/SceneRigidObj.h"
 #include "../object/SceneKinematicObj.h"
-#include "../object/SceneTriggerObj.h"
 #include "../object/SceneCharacterObj.h"
 
 class SceneSimulationEventCallbackImpl final : public physx::PxSimulationEventCallback
@@ -98,11 +97,11 @@ public:
     }
 };
 
-class IgnoreActorQueryMaskFilterCallback final : public physx::PxQueryFilterCallback
+class IgnoreOwnerQueryMaskFilterCallback final : public physx::PxQueryFilterCallback
 {
 public:
-    explicit IgnoreActorQueryMaskFilterCallback(const physx::PxRigidActor* ignoreActor)
-        : m_ignore_actor(ignoreActor)
+    explicit IgnoreOwnerQueryMaskFilterCallback(const SceneObj* ignoreOwner)
+        : m_ignore_owner(ignoreOwner)
     {
     }
 
@@ -111,7 +110,7 @@ public:
                                           const physx::PxRigidActor* actor,
                                           physx::PxHitFlags&) override
     {
-        if (actor && m_ignore_actor && actor == m_ignore_actor) return physx::PxQueryHitType::eNONE;
+        if (actor && m_ignore_owner && m_ignore_owner->ownsActor(actor)) return physx::PxQueryHitType::eNONE;
         if (!shape) return physx::PxQueryHitType::eNONE;
         const physx::PxFilterData shapeFilterData = shape->getQueryFilterData();
         return (shapeFilterData.word0 & queryFilterData.word0) != 0
@@ -128,7 +127,7 @@ public:
     }
 
 private:
-    const physx::PxRigidActor* m_ignore_actor;
+    const SceneObj* m_ignore_owner;
 };
 } // namespace
 
@@ -141,6 +140,7 @@ void SceneSimulationEventCallbackImpl::onContact(const physx::PxContactPairHeade
     const SceneObj* objA = GetSceneObjFromActor(pairHeader.actors[0]);
     const SceneObj* objB = GetSceneObjFromActor(pairHeader.actors[1]);
     if (!objA || !objB) return;
+    if (objA == objB) return;
 
     for (physx::PxU32 i = 0; i < nbPairs; ++i)
     {
@@ -180,6 +180,7 @@ void SceneSimulationEventCallbackImpl::onTrigger(physx::PxTriggerPair* pairs, ph
         const SceneObj* triggerObj = GetSceneObjFromActor(pair.triggerActor);
         const SceneObj* otherObj = GetSceneObjFromActor(pair.otherActor);
         if (!triggerObj || !otherObj) continue;
+        if (triggerObj == otherObj) continue;
 
         const Scene::TriggerPairKey key(triggerObj->handle(), otherObj->handle());
         if (pair.status & physx::PxPairFlag::eNOTIFY_TOUCH_FOUND)
@@ -202,6 +203,7 @@ void SceneControllerHitReportImpl::onShapeHit(const physx::PxControllerShapeHit&
     const SceneObj* controllerObj = GetSceneObjFromController(hit.controller);
     const SceneObj* otherObj = GetSceneObjFromActor(hit.actor);
     if (!controllerObj) return;
+    if (controllerObj == otherObj) return;
     m_owner->pushCharacterHitEvent(SceneCharacterHitEvent::Type::SHAPE_HIT,
                                    controllerObj->handle(),
                                    otherObj ? otherObj->handle() : 0,
@@ -215,6 +217,7 @@ void SceneControllerHitReportImpl::onControllerHit(const physx::PxControllersHit
     const SceneObj* controllerObj = GetSceneObjFromController(hit.controller);
     const SceneObj* otherObj = GetSceneObjFromController(hit.other);
     if (!controllerObj) return;
+    if (controllerObj == otherObj) return;
     m_owner->pushCharacterHitEvent(SceneCharacterHitEvent::Type::CONTROLLER_HIT,
                                    controllerObj->handle(),
                                    otherObj ? otherObj->handle() : 0,
@@ -341,17 +344,6 @@ SceneObj* Scene::createKinematicObject()
     return obj;
 }
 
-SceneObj* Scene::createTriggerObject()
-{
-    auto* obj = new SceneTriggerObj(this);
-    if (!obj->initialize())
-    {
-        delete obj;
-        return nullptr;
-    }
-    return obj;
-}
-
 SceneObj* Scene::createCharacterObject(float radius, float height, const physx::PxExtendedVec3& position)
 {
     auto* obj = new SceneCharacterObj(this, radius, height, position);
@@ -431,14 +423,14 @@ QueryResult Scene::sweep(const physx::PxGeometry& geometry,
                          const physx::PxVec3& unitDir,
                          float distance,
                          uint32_t queryMask,
-                         const physx::PxRigidActor* ignoreActor)
+                         const SceneObj* ignoreOwner)
 {
     if (!m_px_scene || distance <= 0.0f || unitDir.magnitudeSquared() < 1e-6f) return {};
 
     physx::PxSweepBuffer hit;
     const physx::PxQueryFilterData filterData = MakeQueryMaskFilterData(queryMask);
 
-    IgnoreActorQueryMaskFilterCallback filterCallback(ignoreActor);
+    IgnoreOwnerQueryMaskFilterCallback filterCallback(ignoreOwner);
     const bool hasHit = m_px_scene->sweep(geometry,
                                           pose,
                                           unitDir.getNormalized(),

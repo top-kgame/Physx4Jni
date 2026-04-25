@@ -117,8 +117,6 @@ set(MAIN_SOURCES
         source/object/SceneRigidObj.h
         source/object/SceneKinematicObj.cpp
         source/object/SceneKinematicObj.h
-        source/object/SceneTriggerObj.cpp
-        source/object/SceneTriggerObj.h
         source/object/SceneCharacterObj.cpp
         source/object/SceneCharacterObj.h
         source/PhysxApiCommon.h
@@ -148,8 +146,12 @@ target_include_directories(PhysxAPI
         PRIVATE
         ${PROJECT_INCLUDE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/include  # 添加根include目录
-        ${PHYSX_HOME}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/source
+)
+
+# 将第三方 PhysX 头文件标记为 SYSTEM，避免 PhysX 自身 warning 刷屏（影响 Cursor Chat UI）
+target_include_directories(PhysxAPI SYSTEM PRIVATE
+        ${PHYSX_HOME}/include
 )
 
 # 编译定义
@@ -180,6 +182,8 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "C
             -Wall
             -Wextra
             -Wpedantic
+            # PhysX headers trigger this on Clang; keep our warnings, silence 3rd-party noise
+            -Wno-inconsistent-missing-override
     )
 endif()
 
@@ -215,23 +219,19 @@ add_executable(PhysxAPITest
 target_include_directories(PhysxAPITest PRIVATE
         ${PROJECT_INCLUDE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${PHYSX_HOME}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/source
 )
-target_link_libraries(PhysxAPITest PRIVATE PhysxAPI)
 
-# 安装规则（当前安装到构建目录，如需安装到系统请改为 CMAKE_INSTALL_PREFIX 子路径）
-set(INSTALL_LIB_DIR ${BUILD_OUTPUT_DIR}/lib)
-set(INSTALL_BIN_DIR ${BUILD_OUTPUT_DIR}/bin)
-install(TARGETS PhysxAPI
-        LIBRARY DESTINATION ${INSTALL_LIB_DIR}
-        ARCHIVE DESTINATION ${INSTALL_LIB_DIR}
-        RUNTIME DESTINATION ${INSTALL_BIN_DIR}
+target_include_directories(PhysxAPITest SYSTEM PRIVATE
+        ${PHYSX_HOME}/include
 )
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/source/
-        DESTINATION ${BUILD_OUTPUT_DIR}/include/PhysxAPI
-        FILES_MATCHING PATTERN "*.h"
-)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(PhysxAPITest PRIVATE
+            -Wno-inconsistent-missing-override
+    )
+endif()
+target_link_libraries(PhysxAPITest PRIVATE PhysxAPI)
 
 # 复制PhysX DLL到输出目录（Windows）
 if(WIN32)
